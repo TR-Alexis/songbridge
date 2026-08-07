@@ -9,7 +9,12 @@ export function buildSpotifyClient() {
   });
 }
 
-export async function getSpotifyClientForUser(user: { accessToken: string; refreshToken: string; tokenExpiresAt: Date }): Promise<SpotifyWebApi> {
+export async function getSpotifyClientForUser(user: {
+  spotifyId: string;
+  accessToken: string;
+  refreshToken: string;
+  tokenExpiresAt: Date;
+}): Promise<SpotifyWebApi> {
   const spotifyApi = buildSpotifyClient();
   spotifyApi.setAccessToken(user.accessToken);
   spotifyApi.setRefreshToken(user.refreshToken);
@@ -17,18 +22,11 @@ export async function getSpotifyClientForUser(user: { accessToken: string; refre
   const expired = new Date() >= new Date(user.tokenExpiresAt);
   if (expired) {
     const refreshData = await spotifyApi.refreshAccessToken();
-    const { access_token: newAccessToken, expires_in: expiresIn } = refreshData.body;
-    const expiresAt = new Date(Date.now() + expiresIn * 1000);
+    const { access_token: newAccessToken } = refreshData.body;
 
-    await prisma.user.update({
-      where: { spotifyId: user.spotifyId },
-      data: {
-        accessToken: newAccessToken,
-        tokenExpiresAt: expiresAt,
-      },
-    });
-
-    spotifyApi.setAccessToken(newAccessToken);
+    if (newAccessToken) {
+      spotifyApi.setAccessToken(newAccessToken);
+    }
   }
 
   return spotifyApi;

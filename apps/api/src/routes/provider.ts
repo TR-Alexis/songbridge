@@ -13,7 +13,7 @@ router.get('/spotify/login', (req, res) => {
   res.redirect(spotifyProvider.getAuthorizeUrl());
 });
 
-router.get('/spotify/callback', async (req, res, next) => {
+router.get('/spotify/callback', authGuard, async (req: AuthenticatedRequest, res, next) => {
   try {
     const code = String(req.query.code || '');
     if (!code) return res.status(400).json({ error: 'Missing code' });
@@ -33,7 +33,7 @@ router.get('/youtube/login', (req, res) => {
   res.redirect(youtubeProvider.getAuthorizeUrl());
 });
 
-router.get('/youtube/callback', async (req, res, next) => {
+router.get('/youtube/callback', authGuard, async (req: AuthenticatedRequest, res, next) => {
   try {
     const code = String(req.query.code || '');
     if (!code) return res.status(400).json({ error: 'Missing code' });

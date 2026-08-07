@@ -58,7 +58,7 @@ export class SpotifyProvider implements ProviderAdapter<SpotifyProfile> {
     const spotifyApi = this.buildClient(accessToken);
     const data = await spotifyApi.getUserPlaylists({ limit: 50 });
 
-    return data.body.items.map((playlist) => ({
+    return data.body.items.map((playlist: any) => ({
       id: playlist.id,
       name: playlist.name,
       description: playlist.description,
@@ -73,9 +73,9 @@ export class SpotifyProvider implements ProviderAdapter<SpotifyProfile> {
     const data = await spotifyApi.getPlaylistTracks(playlistId, { limit: 100 });
 
     return data.body.items
-      .map((item) => item.track)
-      .filter((track): track is SpotifyApi.TrackObjectFull => Boolean(track))
-      .map((track) => this.toTrack(track));
+      .map((item: any) => item.track)
+      .filter((track): track is any => Boolean(track))
+      .map((track: any) => this.toTrack(track));
   }
 
   async getLibraryTracks(accessToken: string) {
@@ -83,9 +83,9 @@ export class SpotifyProvider implements ProviderAdapter<SpotifyProfile> {
     const data = await spotifyApi.getMySavedTracks({ limit: 50 });
 
     return data.body.items
-      .map((item) => item.track)
-      .filter((track): track is SpotifyApi.TrackObjectFull => Boolean(track))
-      .map((track) => this.toTrack(track));
+      .map((item: any) => item.track)
+      .filter((track): track is any => Boolean(track))
+      .map((track: any) => this.toTrack(track));
   }
 
   async searchTracks(accessToken: string, track: Track) {
@@ -97,8 +97,9 @@ export class SpotifyProvider implements ProviderAdapter<SpotifyProfile> {
 
     const query = queryParts.join(' ');
     const result = await spotifyApi.searchTracks(query, { limit: 10 });
+    const items = result.body.tracks?.items ?? [];
 
-    return result.body.tracks.items.map((item) => this.toTrack(item));
+    return items.map((item: any) => this.toTrack(item));
   }
 
   async createPlaylist(accessToken: string, name: string, description?: string) {
@@ -108,12 +109,13 @@ export class SpotifyProvider implements ProviderAdapter<SpotifyProfile> {
       name,
       description,
       public: false,
-    });
+    } as any);
 
+    const playlistResponse: any = response;
     return {
-      id: response.body.id,
-      externalUrl: response.body.external_urls.spotify,
-      uri: response.body.uri,
+      id: playlistResponse.body?.id,
+      externalUrl: playlistResponse.body?.external_urls?.spotify,
+      uri: playlistResponse.body?.uri,
     };
   }
 
@@ -130,10 +132,10 @@ export class SpotifyProvider implements ProviderAdapter<SpotifyProfile> {
     await spotifyApi.addTracksToPlaylist(playlistId, uris);
   }
 
-  toTrack(source: SpotifyApi.TrackObjectFull): Track {
+  toTrack(source: any): Track {
     return {
       title: source.name,
-      artists: source.artists.map((artist) => artist.name),
+      artists: (source.artists || []).map((artist: any) => artist.name),
       album: source.album?.name ?? undefined,
       duration: source.duration_ms,
       isrc: source.external_ids?.isrc ?? undefined,

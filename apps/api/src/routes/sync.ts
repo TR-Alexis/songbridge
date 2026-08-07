@@ -21,6 +21,10 @@ router.post('/spotify-to-youtube', authGuard, async (req: AuthenticatedRequest, 
 
     const sourceTracks = await spotifyProvider.getPlaylistTracks(spotifyAccount.accessToken, playlistId);
     const targetPlaylist = await youtubeProvider.createPlaylist(youtubeAccount.accessToken, playlistName, 'Imported from Spotify via TuneBridge');
+    const targetPlaylistId = targetPlaylist.id;
+    if (!targetPlaylistId) {
+      throw new Error('Failed to create YouTube playlist');
+    }
 
     const matchedTracks = [];
     for (const sourceTrack of sourceTracks) {
@@ -31,7 +35,7 @@ router.post('/spotify-to-youtube', authGuard, async (req: AuthenticatedRequest, 
       }
     }
 
-    await youtubeProvider.addTracksToPlaylist(youtubeAccount.accessToken, targetPlaylist.id, matchedTracks);
+    await youtubeProvider.addTracksToPlaylist(youtubeAccount.accessToken, targetPlaylistId, matchedTracks);
 
     res.json({
       totalTracks: sourceTracks.length,

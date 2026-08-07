@@ -56,7 +56,7 @@ export class YouTubeProvider implements ProviderAdapter<YouTubeProfile> {
     const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
     const response = await youtube.playlists.list({ part: ['snippet', 'contentDetails'], mine: true, maxResults: 50 });
 
-    return response.data.items?.map((playlist) => ({
+    return response.data.items?.map((playlist: any) => ({
       id: playlist.id,
       name: playlist.snippet?.title,
       description: playlist.snippet?.description,
@@ -71,9 +71,9 @@ export class YouTubeProvider implements ProviderAdapter<YouTubeProfile> {
     const response = await youtube.playlistItems.list({ part: ['snippet', 'contentDetails'], playlistId, maxResults: 50 });
 
     return response.data.items
-      ?.map((item) => item.snippet)
+      ?.map((item: any) => item.snippet)
       .filter((snippet): snippet is any => Boolean(snippet) && snippet.resourceId?.kind === 'youtube#video')
-      .map((snippet) => this.toTrack(snippet)) ?? [];
+      .map((snippet: any) => this.toTrack(snippet)) ?? [];
   }
 
   async searchTracks(accessToken: string, track: Track) {
@@ -115,24 +115,6 @@ export class YouTubeProvider implements ProviderAdapter<YouTubeProfile> {
 
     for (const track of tracks) {
       if (!track.sourceId) continue;
-      await youtube.playlistItems.insert({
-        part: ['snippet'],
-        requestBody: {
-          snippet: {
-            playlistId,
-            resourceId: { kind: 'youtube#video', videoId: track.sourceId },
-          },
-        },
-      });
-    }
-  }
-
-  async addTracksToPlaylist(accessToken: string, playlistId: string, tracks: Track[]) {
-    const oauth2Client = this.buildOauthClient(accessToken);
-    const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
-
-    for (const track of tracks) {
-      if (!track.sourceUri) continue;
       await youtube.playlistItems.insert({
         part: ['snippet'],
         requestBody: {

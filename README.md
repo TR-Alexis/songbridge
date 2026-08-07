@@ -1,50 +1,65 @@
 # TuneBridge
 
 ## Estado actual
-Este repositorio contiene la primera fase del proyecto `TuneBridge`, una plataforma SaaS escalable para sincronizar playlists y pistas entre múltiples servicios de música.
+Este repositorio contiene el prototipo de `TuneBridge`, una plataforma de sincronización de playlists entre servicios de música.
 
 ### Lo que ya está hecho
-- Se creó una estructura de monorepo con:
+- Estructura de monorepo con:
   - `apps/web/` — frontend Next.js 15 + TypeScript + Tailwind CSS
-  - `apps/api/` — backend Express + TypeScript
+  - `apps/api/` — backend Express + TypeScript + Prisma
   - `prisma/` — esquema de datos para PostgreSQL
-- Se agregó la configuración de turbo para orquestar tareas del monorepo.
-- Se definió el esquema Prisma con los modelos `User` y `MatchHistory`.
-- Se configuró `.env.example` con variables necesarias para Spotify, JWT, YouTube y PostgreSQL.
-- Se implementó backend básico con:
-  - `GET /api/auth/login` — redirección a Spotify OAuth
-  - `GET /api/auth/callback` — intercambio de código por tokens, persistencia de usuario y generación de JWT
-  - `GET /api/spotify/playlists` — lectura de playlists del usuario autenticado
-  - `GET /api/spotify/liked-songs` — lectura de pistas guardadas del usuario
-  - `GET /api/youtube/search` — búsqueda en YouTube con API key
-- Se estructuró el frontend con una página de inicio y un dashboard básico.
-- Se implementó un componente cliente en el dashboard para iniciar sesión con Spotify y mostrar playlists usando el token JWT.
+- Configuración de `turbo` para orquestar tareas del monorepo.
+- Definición de `prisma/schema.prisma` con modelos `User`, `ProviderAccount` y `MatchHistory`.
+- Arquitectura modular de proveedores con:
+  - `apps/api/src/modules/spotify`
+  - `apps/api/src/modules/youtube`
+  - Modelo común `Track` en `apps/api/src/core/types/track.ts`
+- Auth OAuth y JWT:
+  - `GET /api/auth/spotify/login`
+  - `GET /api/auth/spotify/callback`
+  - `GET /api/auth/google/login`
+  - `GET /api/auth/google/callback`
+- Rutas de API existentes:
+  - `GET /api/spotify/playlists`
+  - `GET /api/spotify/liked-songs`
+  - `GET /api/youtube/playlists`
+  - `GET /api/youtube/search`
+  - `POST /api/sync/spotify-to-youtube`
+  - `POST /api/sync/youtube-to-spotify`
+- Frontend del dashboard con:
+  - botones de conexión Spotify / YouTube
+  - selección de playlist de Spotify y YouTube
+  - acciones de sincronización desde Spotify a YouTube y viceversa
+  - manejo de token JWT en `localStorage`
+- Verificado que ambos paquetes compilan con TypeScript:
+  - `npx tsc -p apps/api/tsconfig.json --noEmit`
+  - `npx tsc -p apps/web/tsconfig.json --noEmit`
+
+## Recomendado ahora
+1. Copiar `.env.example` a `.env` y configurar:
+   - `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REDIRECT_URI`
+   - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
+   - `JWT_SECRET`, `JWT_EXPIRES_IN`
+   - `DATABASE_URL`
+   - `WEB_URL`
+2. Instalar dependencias desde la raíz:
+   - `npm install`
+3. Ejecutar migración de Prisma:
+   - `npx prisma migrate dev --name init`
+4. Iniciar la API y el frontend:
+   - `npm run dev:api`
+   - `npm run dev:web`
+5. Abrir `http://localhost:3000` y navegar a `/dashboard`.
 
 ## Tareas pendientes
-### Inmediatas
-- Ejecutar instalación de dependencias y validar el entorno local.
-- Ejecutar migración de Prisma para crear el esquema en PostgreSQL.
-- Probar el flujo de OAuth de Spotify y la carga de playlists desde el dashboard.
-- Corregir/ajustar rutas e importaciones según sea necesario.
+- Completar el flujo de creación y carga de playlists de YouTube.
+- Afinar el motor de coincidencia y guardar resultados en la base de datos.
+- Mejorar manejo de errores y estados de autenticación en frontend.
+- Añadir pruebas y validaciones de contractos API.
+- Pulir la interfaz de usuario y la experiencia de sync.
 
-### MVP restante
-- Añadir lectura completa de `liked songs` y selección de playlists.
-- Implementar coincidencias de canciones en YouTube desde el backend.
-- Crear tabla de resultados con enlace a Spotify y YouTube.
-- Implementar exportación de resultados en CSV, JSON y TXT.
-- Agregar manejo de errores y validaciones en frontend y backend.
-
-### Versiones futuras
-- Historial de búsquedas y coincidencias guardado en la base de datos.
-- Creación de playlists en YouTube.
-- Filtros avanzados de búsqueda (oficial, audio, live, etc.).
-- Comparación de playlists y detección de duplicados.
-- Mejor algoritmo de coincidencia de resultados.
-
-## Cómo seguir avanzando
-1. Configurar `.env` con las credenciales reales.
-2. Instalar dependencias en la raíz y en cada paquete.
-3. Ejecutar `npx prisma migrate dev --name init`.
-4. Iniciar la API y el frontend en paralelo.
-5. Validar cada endpoint y el flujo de autenticación.
-6. Iterar agregando las siguientes funcionalidades del MVP.
+## Siguientes pasos de MVP
+- Crear playlists destino en YouTube y Spotify desde el sync.
+- Persistir historial de sincronizaciones en `MatchHistory`.
+- Añadir filtros y mejor lógica de emparejamiento por título/artista.
+- Agregar soporte para más proveedores en la arquitectura modular.

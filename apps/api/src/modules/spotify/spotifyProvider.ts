@@ -78,6 +78,29 @@ export class SpotifyProvider implements ProviderAdapter<SpotifyProfile> {
       .map((track) => this.toTrack(track));
   }
 
+  async getLibraryTracks(accessToken: string) {
+    const spotifyApi = this.buildClient(accessToken);
+    const data = await spotifyApi.getMySavedTracks({ limit: 50 });
+
+    return data.body.items
+      .map((item) => item.track)
+      .filter((track): track is SpotifyApi.TrackObjectFull => Boolean(track))
+      .map((track) => this.toTrack(track));
+  }
+
+  async searchTracks(accessToken: string, track: Track) {
+    const spotifyApi = this.buildClient(accessToken);
+    const queryParts = [`track:${track.title}`];
+    if (track.artists.length > 0) {
+      queryParts.push(`artist:${track.artists[0]}`);
+    }
+
+    const query = queryParts.join(' ');
+    const result = await spotifyApi.searchTracks(query, { limit: 10 });
+
+    return result.body.tracks.items.map((item) => this.toTrack(item));
+  }
+
   async createPlaylist(accessToken: string, name: string, description?: string) {
     const spotifyApi = this.buildClient(accessToken);
     const profile = await spotifyApi.getMe();

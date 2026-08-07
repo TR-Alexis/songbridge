@@ -1,56 +1,25 @@
 import { Router } from 'express';
-import SpotifyWebApi from 'spotify-web-api-node';
+import { authGuard, AuthenticatedRequest } from '../middleware/auth';
+import { SpotifyProvider } from '../modules/spotify';
+import { getProviderAccount } from '../lib/providerAccount';
 
 const router = Router();
+const spotifyProvider = new SpotifyProvider();
 
-const createSpotifyClient = (accessToken: string) => {
-  const spotifyApi = new SpotifyWebApi();
-  spotifyApi.setAccessToken(accessToken);
-  return spotifyApi;
-};
-
-router.get('/playlists', async (req, res, next) => {
+router.get('/playlists', authGuard, async (req: AuthenticatedRequest, res, next) => {
   try {
-    const accessToken = req.headers.authorization?.replace('Bearer ', '');
-    if (!accessToken) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const spotifyApi = createSpotifyClient(accessToken);
-    const data = await spotifyApi.getUserPlaylists({ limit: 50 });
-
-    const playlists = data.body.items.map((item) => ({
-      id: item.id,
-      name: item.name,
-      trackCount: item.tracks.total,
-      uri: item.uri,
-    }));
-
+    const account = await getProviderAccount(req.user!.id, 'spotify');
+    const playlists = await spotifyProvider.getPlaylists(account.accessToken);
     res.json({ playlists });
   } catch (error) {
     next(error);
   }
 });
 
-router.get('/liked-songs', async (req, res, next) => {
+router.get('/liked-songs', authGuard, async (req: AuthenticatedRequest, res, next) => {
   try {
-    const accessToken = req.headers.authorization?.replace('Bearer ', '');
-    if (!accessToken) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const spotifyApi = createSpotifyClient(accessToken);
-    const data = await spotifyApi.getMySavedTracks({ limit: 50 });
-
-    const tracks = data.body.items.map((item) => ({
-      id: item.track?.id,
-      name: item.track?.name,
-      album: item.track?.album.name,
-      artists: item.track?.artists.map((artist) => artist.name).join(', '),
-      spotifyUrl: item.track?.external_urls.spotify,
-      spotifyUri: item.track?.uri,
-    }));
-
+    const account = await getProviderAccount(req.user!.id, 'spotify');
+    const tracks = await spotifyProvider.getLibraryTracks(account.accessToken);
     res.json({ tracks });
   } catch (error) {
     next(error);

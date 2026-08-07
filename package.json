@@ -1,0 +1,19 @@
+{
+  "name": "songbridge",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:web": "turbo run dev --filter=web",
+    "dev:api": "turbo run dev --filter=api",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "format": "turbo run format"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "turbo": "^1.12.3"
+  }
+}

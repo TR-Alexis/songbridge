@@ -4,6 +4,8 @@ import 'express-async-errors';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth';
 import spotifyRoutes from './routes/spotify';
+import youtubeRoutes from './routes/youtube';
+import syncRoutes from './routes/sync';
 import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
@@ -16,8 +18,8 @@ app.use(express.json());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/spotify', spotifyRoutes);
-import youtubeRoutes from './routes/youtube';
 app.use('/api/youtube', youtubeRoutes);
+app.use('/api/sync', syncRoutes);
 
 app.use(errorHandler);
 

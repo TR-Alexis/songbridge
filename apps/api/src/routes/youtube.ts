@@ -1,40 +1,29 @@
 import { Router } from 'express';
-import axios from 'axios';
-import { authGuard } from '../middleware/auth';
+import { authGuard, AuthenticatedRequest } from '../middleware/auth';
+import { YouTubeProvider } from '../modules/youtube';
+import { getProviderAccount } from '../lib/providerAccount';
 
 const router = Router();
-const baseUrl = 'https://www.googleapis.com/youtube/v3/search';
+const youtubeProvider = new YouTubeProvider();
 
-router.get('/search', authGuard, async (req, res, next) => {
+router.get('/playlists', authGuard, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const account = await getProviderAccount(req.user!.id, 'youtube');
+    const playlists = await youtubeProvider.getPlaylists(account.accessToken);
+    res.json({ playlists });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/search', authGuard, async (req: AuthenticatedRequest, res, next) => {
   try {
     const query = String(req.query.q || '');
-    if (!query) {
-      return res.status(400).json({ error: 'Query parameter q is required' });
-    }
+    if (!query) return res.status(400).json({ error: 'Query parameter q is required' });
 
-    const apiKey = process.env.YOUTUBE_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: 'YOUTUBE_API_KEY is not configured' });
-    }
-
-    const response = await axios.get(baseUrl, {
-      params: {
-        key: apiKey,
-        q: query,
-        part: 'snippet',
-        maxResults: 5,
-        type: 'video',
-      },
-    });
-
-    const results = response.data.items.map((item: any) => ({
-      id: item.id.videoId,
-      title: item.snippet.title,
-      channelTitle: item.snippet.channelTitle,
-      thumbnail: item.snippet.thumbnails?.default?.url,
-      url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
-    }));
-
+    const account = await getProviderAccount(req.user!.id, 'youtube');
+    const track = { title: query, artists: [] } as any;
+    const results = await youtubeProvider.searchTracks(account.accessToken, track);
     res.json({ results });
   } catch (error) {
     next(error);

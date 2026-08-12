@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import axios from 'axios';
 import {
-  fetchSpotifyLikedSongs,
   fetchSpotifyPlaylists,
+  fetchSession,
   fetchYouTubePlaylists,
   loginGoogle,
   loginSpotify,
@@ -28,82 +29,57 @@ interface SyncResult {
   };
 }
 
+function getErrorMessage(error: unknown): string {
+  if (axios.isAxiosError(error)) return error.response?.data?.error || error.message;
+  return error instanceof Error ? error.message : 'Ocurrió un error inesperado';
+}
+
 export default function DashboardClient() {
-  const [token, setToken] = useState<string | null>(null);
   const [selectedSpotifyPlaylist, setSelectedSpotifyPlaylist] = useState<string>('');
   const [selectedYouTubePlaylist, setSelectedYouTubePlaylist] = useState<string>('');
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const [playlistName, setPlaylistName] = useState('TuneBridge Sync');
+  const [playlistName, setPlaylistName] = useState('SongBridge Sync');
 
-  const apiUrl = useMemo(() => process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000', []);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const urlToken = params.get('token');
-    if (urlToken) {
-      window.history.replaceState({}, '', window.location.pathname);
-      localStorage.setItem('tunebridge_token', urlToken);
-      setToken(urlToken);
-      return;
-    }
-
-    const savedToken = localStorage.getItem('tunebridge_token');
-    if (savedToken) {
-      setToken(savedToken);
-    }
-  }, []);
+  const sessionQuery = useQuery({ queryKey: ['session'], queryFn: fetchSession, retry: false });
 
   const spotifyPlaylistsQuery = useQuery({
-    queryKey: ['spotifyPlaylists', token],
-    queryFn: async () => {
-      if (!token) return [];
-      return fetchSpotifyPlaylists(token);
-    },
-    enabled: Boolean(token),
-  });
-
-  const spotifyLikedSongsQuery = useQuery({
-    queryKey: ['spotifyLikedSongs', token],
-    queryFn: async () => {
-      if (!token) return [];
-      return fetchSpotifyLikedSongs(token);
-    },
-    enabled: Boolean(token),
+    queryKey: ['spotifyPlaylists'],
+    queryFn: fetchSpotifyPlaylists,
+    enabled: sessionQuery.isSuccess,
+    retry: false,
   });
 
   const youTubePlaylistsQuery = useQuery({
-    queryKey: ['youtubePlaylists', token],
-    queryFn: async () => {
-      if (!token) return [];
-      return fetchYouTubePlaylists(token);
-    },
-    enabled: Boolean(token),
+    queryKey: ['youtubePlaylists'],
+    queryFn: fetchYouTubePlaylists,
+    enabled: sessionQuery.isSuccess,
+    retry: false,
   });
 
   const handleSyncSpotifyToYouTube = async () => {
-    if (!token || !selectedSpotifyPlaylist) return;
+    if (!selectedSpotifyPlaylist) return;
     setSyncError(null);
     setSyncResult(null);
 
     try {
-      const result = await syncSpotifyToYouTube(token, selectedSpotifyPlaylist, playlistName);
+      const result = await syncSpotifyToYouTube(selectedSpotifyPlaylist, playlistName);
       setSyncResult(result);
-    } catch (error: any) {
-      setSyncError(error?.response?.data?.error || error.message);
+    } catch (error: unknown) {
+      setSyncError(getErrorMessage(error));
     }
   };
 
   const handleSyncYouTubeToSpotify = async () => {
-    if (!token || !selectedYouTubePlaylist) return;
+    if (!selectedYouTubePlaylist) return;
     setSyncError(null);
     setSyncResult(null);
 
     try {
-      const result = await syncYouTubeToSpotify(token, selectedYouTubePlaylist, playlistName);
+      const result = await syncYouTubeToSpotify(selectedYouTubePlaylist, playlistName);
       setSyncResult(result);
-    } catch (error: any) {
-      setSyncError(error?.response?.data?.error || error.message);
+    } catch (error: unknown) {
+      setSyncError(getErrorMessage(error));
     }
   };
 
@@ -112,7 +88,7 @@ export default function DashboardClient() {
       <div className="mx-auto max-w-6xl rounded-3xl border border-slate-700 bg-slate-900/80 p-10 shadow-2xl shadow-slate-950/30">
         <div className="flex flex-col gap-8">
           <section className="space-y-4">
-            <h1 className="text-4xl font-semibold">TuneBridge</h1>
+            <h1 className="text-4xl font-semibold">SongBridge</h1>
             <p className="text-slate-400">
               Sincroniza playlists entre Spotify y YouTube usando un motor de coincidencia común.
             </p>
@@ -133,7 +109,7 @@ export default function DashboardClient() {
             </button>
           </section>
 
-          {token ? (
+          {sessionQuery.isSuccess ? (
             <div className="grid gap-6 lg:grid-cols-2">
               <div className="rounded-3xl border border-slate-800 bg-slate-950/80 p-6">
                 <h2 className="text-xl font-semibold">Importar desde Spotify</h2>

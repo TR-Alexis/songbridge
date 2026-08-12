@@ -13,7 +13,7 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 4000;
 
-app.use(cors({ origin: process.env.WEB_URL || 'http://localhost:3000' }));
+app.use(cors({ origin: process.env.WEB_URL || 'http://localhost:3000', credentials: true }));
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);

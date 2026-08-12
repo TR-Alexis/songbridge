@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
+import { getSessionToken } from '../lib/session';
 
 export interface AuthenticatedRequest extends Request {
   user?: Awaited<ReturnType<typeof prisma.user.findUnique>>;
@@ -8,12 +9,11 @@ export interface AuthenticatedRequest extends Request {
 
 export async function authGuard(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
-    const authorization = req.headers.authorization;
-    if (!authorization?.startsWith('Bearer ')) {
+    const token = getSessionToken(req);
+    if (!token) {
       return res.status(401).json({ error: 'Missing authorization token' });
     }
 
-    const token = authorization.replace('Bearer ', '');
     const secret = process.env.JWT_SECRET;
     if (!secret) {
       throw new Error('JWT_SECRET is not configured');
@@ -32,6 +32,9 @@ export async function authGuard(req: AuthenticatedRequest, res: Response, next: 
     req.user = user;
     next();
   } catch (error) {
+    if (error instanceof jwt.JsonWebTokenError || error instanceof jwt.TokenExpiredError) {
+      return res.status(401).json({ error: 'Invalid or expired session' });
+    }
     next(error);
   }
 }

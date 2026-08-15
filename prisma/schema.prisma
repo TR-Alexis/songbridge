@@ -30,6 +30,7 @@ model ProviderAccount {
   updatedAt      DateTime @updatedAt
 
   @@unique([provider, providerUserId])
+  @@unique([userId, provider])
 }
 
 model MatchHistory {

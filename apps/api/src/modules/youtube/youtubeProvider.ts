@@ -9,6 +9,9 @@ export interface YouTubeProfile {
 }
 
 const youtubeScopes = [
+  'openid',
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile',
   'https://www.googleapis.com/auth/youtube.readonly',
   'https://www.googleapis.com/auth/youtube',
   'https://www.googleapis.com/auth/youtube.force-ssl',
@@ -22,13 +25,21 @@ export class YouTubeProvider implements ProviderAdapter<YouTubeProfile> {
       process.env.GOOGLE_REDIRECT_URI,
     );
 
-    if (accessToken) oauth2Client.setCredentials({ access_token: accessToken, refresh_token: refreshToken });
+    if (accessToken || refreshToken) oauth2Client.setCredentials({ access_token: accessToken, refresh_token: refreshToken });
     return oauth2Client;
   }
 
-  getAuthorizeUrl() {
+  getAuthorizeUrl(state: string) {
     const oauth2Client = this.buildOauthClient();
-    return oauth2Client.generateAuthUrl({ access_type: 'offline', scope: youtubeScopes, prompt: 'consent' });
+    return oauth2Client.generateAuthUrl({ access_type: 'offline', scope: youtubeScopes, prompt: 'consent', state });
+  }
+
+  async refreshAccessToken(refreshToken: string) {
+    const oauth2Client = this.buildOauthClient(undefined, refreshToken);
+    const { token } = await oauth2Client.getAccessToken();
+    if (!token) throw new Error('Google did not return a refreshed access token');
+    const expiryDate = oauth2Client.credentials.expiry_date;
+    return { accessToken: token, expiresIn: expiryDate ? Math.max(60, Math.floor((expiryDate - Date.now()) / 1000)) : 3600 };
   }
 
   async exchangeCode(code: string) {
@@ -41,7 +52,7 @@ export class YouTubeProvider implements ProviderAdapter<YouTubeProfile> {
 
     return {
       accessToken: tokens.access_token ?? '',
-      refreshToken: tokens.refresh_token ?? '',
+      refreshToken: tokens.refresh_token ?? undefined,
       expiresIn: tokens.expiry_date ? Math.floor((tokens.expiry_date - Date.now()) / 1000) : 3600,
       profile: {
         id: profile.data.id ?? '',
@@ -54,26 +65,38 @@ export class YouTubeProvider implements ProviderAdapter<YouTubeProfile> {
   async getPlaylists(accessToken: string) {
     const oauth2Client = this.buildOauthClient(accessToken);
     const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
-    const response = await youtube.playlists.list({ part: ['snippet', 'contentDetails'], mine: true, maxResults: 50 });
+    const items: any[] = [];
+    let pageToken: string | undefined;
+    do {
+      const response = await youtube.playlists.list({ part: ['snippet', 'contentDetails'], mine: true, maxResults: 50, pageToken });
+      items.push(...(response.data.items ?? []));
+      pageToken = response.data.nextPageToken ?? undefined;
+    } while (pageToken);
 
-    return response.data.items?.map((playlist: any) => ({
+    return items.map((playlist: any) => ({
       id: playlist.id,
       name: playlist.snippet?.title,
       description: playlist.snippet?.description,
       externalUrl: `https://www.youtube.com/playlist?list=${playlist.id}`,
       trackCount: playlist.contentDetails?.itemCount,
-    })) ?? [];
+    }));
   }
 
   async getPlaylistTracks(accessToken: string, playlistId: string) {
     const oauth2Client = this.buildOauthClient(accessToken);
     const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
-    const response = await youtube.playlistItems.list({ part: ['snippet', 'contentDetails'], playlistId, maxResults: 50 });
+    const items: any[] = [];
+    let pageToken: string | undefined;
+    do {
+      const response = await youtube.playlistItems.list({ part: ['snippet', 'contentDetails'], playlistId, maxResults: 50, pageToken });
+      items.push(...(response.data.items ?? []));
+      pageToken = response.data.nextPageToken ?? undefined;
+    } while (pageToken);
 
-    return response.data.items
-      ?.map((item: any) => item.snippet)
+    return items
+      .map((item: any) => item.snippet)
       .filter((snippet): snippet is any => Boolean(snippet) && snippet.resourceId?.kind === 'youtube#video')
-      .map((snippet: any) => this.toTrack(snippet)) ?? [];
+      .map((snippet: any) => this.toTrack(snippet));
   }
 
   async searchTracks(accessToken: string, track: Track) {
@@ -98,7 +121,7 @@ export class YouTubeProvider implements ProviderAdapter<YouTubeProfile> {
     const response = await youtube.playlists.insert({
       part: ['snippet', 'status'],
       requestBody: {
-        snippet: { title: name, description: description ?? '', tags: ['TuneBridge'], defaultLanguage: 'en' },
+        snippet: { title: name, description: description ?? '', tags: ['SongBridge'], defaultLanguage: 'en' },
         status: { privacyStatus: 'private' },
       },
     });

@@ -4,7 +4,10 @@ node_modules/
 .DS_Store
 dist/
 .next/
+.turbo/
+**/.turbo/
 coverage/
+*.tsbuildinfo
 pnpm-lock.yaml
 yarn.lock
 npm-debug.log*

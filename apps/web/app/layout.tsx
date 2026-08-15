@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  title: 'TuneBridge',
+  title: 'SongBridge',
   description: 'Plataforma de sincronización de playlists entre servicios de música',
 };
 

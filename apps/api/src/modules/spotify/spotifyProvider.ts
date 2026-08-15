@@ -32,9 +32,16 @@ export class SpotifyProvider implements ProviderAdapter<SpotifyProfile> {
     return spotifyApi;
   }
 
-  getAuthorizeUrl() {
+  getAuthorizeUrl(state: string) {
     const spotifyApi = this.buildClient();
-    return spotifyApi.createAuthorizeURL(spotifyScopes, 'tunebridge');
+    return spotifyApi.createAuthorizeURL(spotifyScopes, state);
+  }
+
+  async refreshAccessToken(refreshToken: string) {
+    const spotifyApi = this.buildClient();
+    spotifyApi.setRefreshToken(refreshToken);
+    const data = await spotifyApi.refreshAccessToken();
+    return { accessToken: data.body.access_token, expiresIn: data.body.expires_in };
   }
 
   async exchangeCode(code: string) {
@@ -56,9 +63,17 @@ export class SpotifyProvider implements ProviderAdapter<SpotifyProfile> {
 
   async getPlaylists(accessToken: string) {
     const spotifyApi = this.buildClient(accessToken);
-    const data = await spotifyApi.getUserPlaylists({ limit: 50 });
+    const items: any[] = [];
+    let offset = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const data = await spotifyApi.getUserPlaylists({ limit: 50, offset });
+      items.push(...data.body.items);
+      hasMore = Boolean(data.body.next);
+      offset += data.body.items.length;
+    }
 
-    return data.body.items.map((playlist: any) => ({
+    return items.map((playlist: any) => ({
       id: playlist.id,
       name: playlist.name,
       description: playlist.description,
@@ -70,9 +85,17 @@ export class SpotifyProvider implements ProviderAdapter<SpotifyProfile> {
 
   async getPlaylistTracks(accessToken: string, playlistId: string) {
     const spotifyApi = this.buildClient(accessToken);
-    const data = await spotifyApi.getPlaylistTracks(playlistId, { limit: 100 });
+    const items: any[] = [];
+    let offset = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const data = await spotifyApi.getPlaylistTracks(playlistId, { limit: 100, offset });
+      items.push(...data.body.items);
+      hasMore = Boolean(data.body.next);
+      offset += data.body.items.length;
+    }
 
-    return data.body.items
+    return items
       .map((item: any) => item.track)
       .filter((track): track is any => Boolean(track))
       .map((track: any) => this.toTrack(track));
@@ -80,9 +103,17 @@ export class SpotifyProvider implements ProviderAdapter<SpotifyProfile> {
 
   async getLibraryTracks(accessToken: string) {
     const spotifyApi = this.buildClient(accessToken);
-    const data = await spotifyApi.getMySavedTracks({ limit: 50 });
+    const items: any[] = [];
+    let offset = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const data = await spotifyApi.getMySavedTracks({ limit: 50, offset });
+      items.push(...data.body.items);
+      hasMore = Boolean(data.body.next);
+      offset += data.body.items.length;
+    }
 
-    return data.body.items
+    return items
       .map((item: any) => item.track)
       .filter((track): track is any => Boolean(track))
       .map((track: any) => this.toTrack(track));
@@ -129,7 +160,9 @@ export class SpotifyProvider implements ProviderAdapter<SpotifyProfile> {
       return;
     }
 
-    await spotifyApi.addTracksToPlaylist(playlistId, uris);
+    for (let index = 0; index < uris.length; index += 100) {
+      await spotifyApi.addTracksToPlaylist(playlistId, uris.slice(index, index + 100));
+    }
   }
 
   toTrack(source: any): Track {

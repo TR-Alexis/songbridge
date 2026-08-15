@@ -6,32 +6,56 @@ export interface TrackMatchResult {
 }
 
 export class TrackMatchingEngine {
+  static readonly MINIMUM_MATCH_SCORE = 45;
+
+  private static normalize(value: string): string {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/(?:\[|\().*?(official|lyrics?|audio|video|remaster(ed)?).*?(?:\]|\))/g, ' ')
+      .replace(/\b(official|lyrics?|audio|video|hd|hq)\b/g, ' ')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .replace(/\s+/g, ' ');
+  }
+
+  private static tokenSimilarity(a: string, b: string): number {
+    const tokensA = new Set(a.split(' ').filter(Boolean));
+    const tokensB = new Set(b.split(' ').filter(Boolean));
+    if (tokensA.size === 0 || tokensB.size === 0) return 0;
+    const intersection = [...tokensA].filter((token) => tokensB.has(token)).length;
+    return (2 * intersection) / (tokensA.size + tokensB.size);
+  }
+
   static computeSimilarity(a: Track, b: Track): number {
     let score = 0;
 
-    const titleA = a.title.toLowerCase().trim();
-    const titleB = b.title.toLowerCase().trim();
-    if (titleA === titleB) score += 40;
-    else if (titleA.includes(titleB) || titleB.includes(titleA)) score += 20;
+    const titleA = this.normalize(a.title);
+    const titleB = this.normalize(b.title);
+    if (titleA && titleA === titleB) score += 55;
+    else if (titleA && titleB && (titleA.includes(titleB) || titleB.includes(titleA))) score += 45;
+    else score += Math.round(this.tokenSimilarity(titleA, titleB) * 40);
 
-    const artistsA = a.artists.map((artist) => artist.toLowerCase().trim()).join(' ');
-    const artistsB = b.artists.map((artist) => artist.toLowerCase().trim()).join(' ');
-    if (artistsA === artistsB) score += 30;
-    else if (artistsA.includes(artistsB) || artistsB.includes(artistsA)) score += 15;
+    const artistsA = a.artists.map((artist) => this.normalize(artist)).filter(Boolean);
+    const candidateContext = this.normalize(`${b.artists.join(' ')} ${b.title}`);
+    if (artistsA.length > 0 && artistsA.every((artist) => candidateContext.includes(artist))) score += 30;
+    else if (artistsA.some((artist) => candidateContext.includes(artist))) score += 15;
 
     if (a.album && b.album) {
-      const albumA = a.album.toLowerCase().trim();
-      const albumB = b.album.toLowerCase().trim();
-      if (albumA === albumB) score += 15;
+      const albumA = this.normalize(a.album);
+      const albumB = this.normalize(b.album);
+      if (albumA && albumA === albumB) score += 10;
     }
 
     if (a.duration && b.duration) {
       const durationDifference = Math.abs(a.duration - b.duration);
-      if (durationDifference <= 3000) score += 10;
+      if (durationDifference <= 3000) score += 15;
+      else if (durationDifference <= 8000) score += 5;
     }
 
     if (a.isrc && b.isrc && a.isrc === b.isrc) {
-      score += 50;
+      score += 100;
     }
 
     return score;
@@ -46,6 +70,6 @@ export class TrackMatchingEngine {
     }));
 
     const best = matches.sort((a, b) => b.score - a.score)[0];
-    return best.score === 0 ? null : best;
+    return best.score < TrackMatchingEngine.MINIMUM_MATCH_SCORE ? null : best;
   }
 }

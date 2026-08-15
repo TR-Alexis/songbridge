@@ -6,8 +6,8 @@ export interface ProviderTrackAdapter<TSource, TTarget> {
 }
 
 export interface ProviderAdapter<TProfile = any> {
-  getAuthorizeUrl(): string;
-  exchangeCode(code: string): Promise<{ accessToken: string; refreshToken: string; expiresIn: number; profile: TProfile }>;
+  getAuthorizeUrl(state: string): string;
+  exchangeCode(code: string): Promise<{ accessToken: string; refreshToken?: string; expiresIn: number; profile: TProfile }>;
   getPlaylists(accessToken: string): Promise<any[]>;
   getPlaylistTracks(accessToken: string, playlistId: string): Promise<Track[]>;
   getLibraryTracks?(accessToken: string): Promise<Track[]>;

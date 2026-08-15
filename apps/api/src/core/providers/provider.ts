@@ -9,7 +9,7 @@ export interface ProviderAdapter<TProfile = any> {
   getAuthorizeUrl(state: string): string;
   exchangeCode(code: string): Promise<{ accessToken: string; refreshToken?: string; expiresIn: number; profile: TProfile }>;
   getPlaylists(accessToken: string): Promise<any[]>;
-  getPlaylistTracks(accessToken: string, playlistId: string): Promise<Track[]>;
+  getPlaylistTracks(accessToken: string, playlistId: string, maxItems?: number): Promise<Track[]>;
   getLibraryTracks?(accessToken: string): Promise<Track[]>;
   searchTracks(accessToken: string, track: Track): Promise<Track[]>;
   createPlaylist(accessToken: string, name: string, description?: string): Promise<any>;

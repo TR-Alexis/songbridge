@@ -23,6 +23,8 @@ model ProviderAccount {
   userId         String
   provider       String
   providerUserId String
+  providerEmail  String?
+  providerDisplayName String?
   accessToken    String
   refreshToken   String?
   expiresAt      DateTime?

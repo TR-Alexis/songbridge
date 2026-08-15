@@ -8,7 +8,7 @@
     "start": "node dist/index.js",
     "lint": "eslint . --ext .ts",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --test dist/lib/tokenCrypto.test.js dist/modules/trackMatching/trackMatchingEngine.test.js"
+    "test": "npm run build && node --test dist/lib/tokenCrypto.test.js dist/modules/spotify/spotifyProvider.test.js dist/modules/trackMatching/trackMatchingEngine.test.js"
   },
   "dependencies": {
     "@prisma/client": "^5.12.0",

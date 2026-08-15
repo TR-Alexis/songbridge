@@ -31,7 +31,7 @@ export class YouTubeProvider implements ProviderAdapter<YouTubeProfile> {
 
   getAuthorizeUrl(state: string) {
     const oauth2Client = this.buildOauthClient();
-    return oauth2Client.generateAuthUrl({ access_type: 'offline', scope: youtubeScopes, prompt: 'consent', state });
+    return oauth2Client.generateAuthUrl({ access_type: 'offline', scope: youtubeScopes, prompt: 'consent select_account', state });
   }
 
   async refreshAccessToken(refreshToken: string) {
@@ -47,18 +47,28 @@ export class YouTubeProvider implements ProviderAdapter<YouTubeProfile> {
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
 
-    const oauth2 = google.oauth2({ auth: oauth2Client, version: 'v2' });
-    const profile = await oauth2.userinfo.get();
+    const profile = await this.getProfile(tokens.access_token ?? '');
 
     return {
       accessToken: tokens.access_token ?? '',
       refreshToken: tokens.refresh_token ?? undefined,
       expiresIn: tokens.expiry_date ? Math.floor((tokens.expiry_date - Date.now()) / 1000) : 3600,
       profile: {
-        id: profile.data.id ?? '',
-        email: profile.data.email ?? undefined,
-        displayName: profile.data.name ?? undefined,
+        id: profile.id,
+        email: profile.email,
+        displayName: profile.displayName,
       },
+    };
+  }
+
+  async getProfile(accessToken: string): Promise<YouTubeProfile> {
+    const oauth2Client = this.buildOauthClient(accessToken);
+    const oauth2 = google.oauth2({ auth: oauth2Client, version: 'v2' });
+    const profile = await oauth2.userinfo.get();
+    return {
+      id: profile.data.id ?? '',
+      email: profile.data.email ?? undefined,
+      displayName: profile.data.name ?? undefined,
     };
   }
 
@@ -82,18 +92,25 @@ export class YouTubeProvider implements ProviderAdapter<YouTubeProfile> {
     }));
   }
 
-  async getPlaylistTracks(accessToken: string, playlistId: string) {
+  async getPlaylistTracks(accessToken: string, playlistId: string, maxItems?: number) {
     const oauth2Client = this.buildOauthClient(accessToken);
     const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
     const items: any[] = [];
     let pageToken: string | undefined;
     do {
-      const response = await youtube.playlistItems.list({ part: ['snippet', 'contentDetails'], playlistId, maxResults: 50, pageToken });
+      const remaining = maxItems ? maxItems - items.length : 50;
+      const response = await youtube.playlistItems.list({
+        part: ['snippet', 'contentDetails'],
+        playlistId,
+        maxResults: Math.min(50, remaining),
+        pageToken,
+      });
       items.push(...(response.data.items ?? []));
-      pageToken = response.data.nextPageToken ?? undefined;
+      pageToken = !maxItems || items.length < maxItems ? response.data.nextPageToken ?? undefined : undefined;
     } while (pageToken);
 
-    return items
+    const selectedItems = maxItems ? items.slice(0, maxItems) : items;
+    return selectedItems
       .map((item: any) => item.snippet)
       .filter((snippet): snippet is any => Boolean(snippet) && snippet.resourceId?.kind === 'youtube#video')
       .map((snippet: any) => this.toTrack(snippet));

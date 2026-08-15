@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// Browser requests stay on the web origin. Next.js proxies /api to Express,
+// avoiding public-to-loopback requests when the app is exposed through ngrok.
+const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
 
 const requestConfig = { withCredentials: true };
 
@@ -26,9 +28,26 @@ export async function fetchSession() {
   return response.data.user;
 }
 
+export async function fetchProviderConnections() {
+  const response = await axios.get(`${apiUrl}/api/auth/providers`, requestConfig);
+  return response.data.providers;
+}
+
+export async function disconnectProvider(provider: 'spotify' | 'youtube') {
+  await axios.delete(`${apiUrl}/api/auth/providers/${provider}`, requestConfig);
+}
+
 export async function fetchSpotifyPlaylists() {
   const response = await axios.get(`${apiUrl}/api/spotify/playlists`, requestConfig);
   return response.data.playlists;
+}
+
+export async function fetchSpotifyPlaylistTracks(playlistId: string) {
+  const response = await axios.get(
+    `${apiUrl}/api/spotify/playlists/${encodeURIComponent(playlistId)}/tracks`,
+    requestConfig,
+  );
+  return response.data.tracks;
 }
 
 export async function syncSpotifyToYouTube(playlistId: string, playlistName: string) {
@@ -52,4 +71,12 @@ export async function syncYouTubeToSpotify(playlistId: string, playlistName: str
 export async function fetchYouTubePlaylists() {
   const response = await axios.get(`${apiUrl}/api/youtube/playlists`, requestConfig);
   return response.data.playlists;
+}
+
+export async function fetchYouTubePlaylistTracks(playlistId: string) {
+  const response = await axios.get(
+    `${apiUrl}/api/youtube/playlists/${encodeURIComponent(playlistId)}/tracks`,
+    requestConfig,
+  );
+  return response.data.tracks;
 }

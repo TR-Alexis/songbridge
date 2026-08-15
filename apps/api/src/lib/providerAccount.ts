@@ -53,6 +53,7 @@ export async function upsertProviderAccount(
   accessToken: string,
   refreshToken: string | undefined,
   expiresIn: number,
+  profile?: { email?: string; displayName?: string },
 ) {
   const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
@@ -65,6 +66,8 @@ export async function upsertProviderAccount(
     },
     update: {
       providerUserId,
+      providerEmail: profile?.email,
+      providerDisplayName: profile?.displayName,
       accessToken: encryptToken(accessToken),
       ...(refreshToken ? { refreshToken: encryptToken(refreshToken) } : {}),
       expiresAt,
@@ -72,6 +75,8 @@ export async function upsertProviderAccount(
     create: {
       provider,
       providerUserId,
+      providerEmail: profile?.email,
+      providerDisplayName: profile?.displayName,
       accessToken: encryptToken(accessToken),
       refreshToken: refreshToken ? encryptToken(refreshToken) : undefined,
       expiresAt,

@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
 import { SpotifyProvider } from '../modules/spotify';
 import { YouTubeProvider } from '../modules/youtube';
-import { upsertProviderAccount } from '../lib/providerAccount';
+import { getProviderAccount, upsertProviderAccount } from '../lib/providerAccount';
 import { consumeOAuthState, createOAuthState } from '../lib/oauthState';
 import { authGuard, AuthenticatedRequest } from '../middleware/auth';
 import { clearSessionCookie, getSessionToken, setSessionCookie } from '../lib/session';
@@ -58,6 +58,78 @@ router.post('/logout', (_req, res) => {
   res.status(204).send();
 });
 
+router.get('/providers', authGuard, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const accounts = await prisma.providerAccount.findMany({
+      where: { userId: req.user!.id },
+      select: {
+        provider: true,
+        providerUserId: true,
+        providerEmail: true,
+        providerDisplayName: true,
+        expiresAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { provider: 'asc' },
+    });
+
+    const enrichedAccounts = await Promise.all(accounts.map(async (account) => {
+      if (account.providerEmail && account.providerDisplayName) return account;
+      if (account.provider !== 'spotify' && account.provider !== 'youtube') return account;
+
+      try {
+        const credentials = await getProviderAccount(req.user!.id, account.provider);
+        const profile = account.provider === 'spotify'
+          ? await spotifyProvider.getProfile(credentials.accessToken)
+          : await youtubeProvider.getProfile(credentials.accessToken);
+        return prisma.providerAccount.update({
+          where: { userId_provider: { userId: req.user!.id, provider: account.provider } },
+          data: { providerEmail: profile.email, providerDisplayName: profile.displayName },
+          select: {
+            provider: true,
+            providerUserId: true,
+            providerEmail: true,
+            providerDisplayName: true,
+            expiresAt: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+      } catch (error) {
+        console.warn(`Could not refresh ${account.provider} account metadata`, error instanceof Error ? error.message : 'Unknown error');
+        return account;
+      }
+    }));
+
+    res.json({
+      providers: enrichedAccounts.map((account) => ({
+        ...account,
+        email: account.providerEmail ?? req.user!.email,
+        displayName: account.providerDisplayName,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/providers/:provider', authGuard, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const provider = String(req.params.provider);
+    if (provider !== 'spotify' && provider !== 'youtube') {
+      return res.status(400).json({ error: 'Unsupported provider' });
+    }
+
+    await prisma.providerAccount.deleteMany({
+      where: { userId: req.user!.id, provider },
+    });
+    return res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/spotify/start', (req, res) => {
   const state = createOAuthState(res, 'spotify', getSessionUserId(req));
   res.json({ authorizeUrl: spotifyProvider.getAuthorizeUrl(state) });
@@ -85,7 +157,15 @@ router.get('/spotify/callback', async (req, res, next) => {
     const user = state.userId
       ? await prisma.user.findUniqueOrThrow({ where: { id: state.userId } })
       : await findOrCreateUserByEmail(profile.email, profile.displayName);
-    await upsertProviderAccount(user.id, 'spotify', profile.id, response.accessToken, response.refreshToken, response.expiresIn);
+    await upsertProviderAccount(
+      user.id,
+      'spotify',
+      profile.id,
+      response.accessToken,
+      response.refreshToken,
+      response.expiresIn,
+      { email: profile.email, displayName: profile.displayName },
+    );
 
     const token = buildJwt(user.id);
     setSessionCookie(res, token);
@@ -113,7 +193,15 @@ router.get('/google/callback', async (req, res, next) => {
     const user = state.userId
       ? await prisma.user.findUniqueOrThrow({ where: { id: state.userId } })
       : await findOrCreateUserByEmail(profile.email, profile.displayName);
-    await upsertProviderAccount(user.id, 'youtube', profile.id, response.accessToken, response.refreshToken, response.expiresIn);
+    await upsertProviderAccount(
+      user.id,
+      'youtube',
+      profile.id,
+      response.accessToken,
+      response.refreshToken,
+      response.expiresIn,
+      { email: profile.email, displayName: profile.displayName },
+    );
 
     const token = buildJwt(user.id);
     setSessionCookie(res, token);

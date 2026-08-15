@@ -1,4 +1,5 @@
 import SpotifyWebApi from 'spotify-web-api-node';
+import axios from 'axios';
 import { ProviderAdapter } from '../../core/providers/provider';
 import { Track } from '../../core/types/track';
 
@@ -17,6 +18,14 @@ export const spotifyScopes = [
   'user-library-read',
 ];
 
+export function getPlaylistTrackCount(playlist: any): number {
+  return playlist.items?.total ?? playlist.tracks?.total ?? 0;
+}
+
+export function getPlaylistItemTrack(item: any): any | null {
+  return item.item ?? item.track ?? null;
+}
+
 export class SpotifyProvider implements ProviderAdapter<SpotifyProfile> {
   private buildClient(accessToken?: string): SpotifyWebApi {
     const spotifyApi = new SpotifyWebApi({
@@ -32,9 +41,13 @@ export class SpotifyProvider implements ProviderAdapter<SpotifyProfile> {
     return spotifyApi;
   }
 
+  private requestHeaders(accessToken: string) {
+    return { Authorization: `Bearer ${accessToken}` };
+  }
+
   getAuthorizeUrl(state: string) {
     const spotifyApi = this.buildClient();
-    return spotifyApi.createAuthorizeURL(spotifyScopes, state);
+    return spotifyApi.createAuthorizeURL(spotifyScopes, state, true);
   }
 
   async refreshAccessToken(refreshToken: string) {
@@ -47,17 +60,22 @@ export class SpotifyProvider implements ProviderAdapter<SpotifyProfile> {
   async exchangeCode(code: string) {
     const spotifyApi = this.buildClient();
     const data = await spotifyApi.authorizationCodeGrant(code);
-    const profileData = await this.buildClient(data.body.access_token).getMe();
+    const profile = await this.getProfile(data.body.access_token);
 
     return {
       accessToken: data.body.access_token,
       refreshToken: data.body.refresh_token,
       expiresIn: data.body.expires_in,
-      profile: {
-        id: profileData.body.id,
-        email: profileData.body.email ?? undefined,
-        displayName: profileData.body.display_name ?? undefined,
-      },
+      profile,
+    };
+  }
+
+  async getProfile(accessToken: string): Promise<SpotifyProfile> {
+    const profileData = await this.buildClient(accessToken).getMe();
+    return {
+      id: profileData.body.id,
+      email: profileData.body.email ?? undefined,
+      displayName: profileData.body.display_name ?? undefined,
     };
   }
 
@@ -78,25 +96,30 @@ export class SpotifyProvider implements ProviderAdapter<SpotifyProfile> {
       name: playlist.name,
       description: playlist.description,
       externalUrl: playlist.external_urls.spotify,
-      trackCount: playlist.tracks.total,
+      trackCount: getPlaylistTrackCount(playlist),
       uri: playlist.uri,
     }));
   }
 
-  async getPlaylistTracks(accessToken: string, playlistId: string) {
-    const spotifyApi = this.buildClient(accessToken);
+  async getPlaylistTracks(accessToken: string, playlistId: string, maxItems?: number) {
     const items: any[] = [];
     let offset = 0;
     let hasMore = true;
     while (hasMore) {
-      const data = await spotifyApi.getPlaylistTracks(playlistId, { limit: 100, offset });
-      items.push(...data.body.items);
-      hasMore = Boolean(data.body.next);
-      offset += data.body.items.length;
+      const remaining = maxItems ? maxItems - items.length : 50;
+      const response = await axios.get(`https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/items`, {
+        headers: this.requestHeaders(accessToken),
+        params: { limit: Math.min(50, remaining), offset },
+      });
+      const pageItems = response.data.items ?? [];
+      items.push(...pageItems);
+      hasMore = Boolean(response.data.next) && (!maxItems || items.length < maxItems);
+      offset += pageItems.length;
     }
 
-    return items
-      .map((item: any) => item.track)
+    const selectedItems = maxItems ? items.slice(0, maxItems) : items;
+    return selectedItems
+      .map(getPlaylistItemTrack)
       .filter((track): track is any => Boolean(track))
       .map((track: any) => this.toTrack(track));
   }
@@ -134,24 +157,20 @@ export class SpotifyProvider implements ProviderAdapter<SpotifyProfile> {
   }
 
   async createPlaylist(accessToken: string, name: string, description?: string) {
-    const spotifyApi = this.buildClient(accessToken);
-    const profile = await spotifyApi.getMe();
-    const response = await spotifyApi.createPlaylist(profile.body.id, {
-      name,
-      description,
-      public: false,
-    } as any);
+    const response = await axios.post(
+      'https://api.spotify.com/v1/me/playlists',
+      { name, description, public: false },
+      { headers: this.requestHeaders(accessToken) },
+    );
 
-    const playlistResponse: any = response;
     return {
-      id: playlistResponse.body?.id,
-      externalUrl: playlistResponse.body?.external_urls?.spotify,
-      uri: playlistResponse.body?.uri,
+      id: response.data.id,
+      externalUrl: response.data.external_urls?.spotify,
+      uri: response.data.uri,
     };
   }
 
   async addTracksToPlaylist(accessToken: string, playlistId: string, tracks: Track[]) {
-    const spotifyApi = this.buildClient(accessToken);
     const uris = tracks
       .map((track) => track.sourceUri)
       .filter((uri): uri is string => Boolean(uri));
@@ -161,7 +180,11 @@ export class SpotifyProvider implements ProviderAdapter<SpotifyProfile> {
     }
 
     for (let index = 0; index < uris.length; index += 100) {
-      await spotifyApi.addTracksToPlaylist(playlistId, uris.slice(index, index + 100));
+      await axios.post(
+        `https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/items`,
+        { uris: uris.slice(index, index + 100) },
+        { headers: this.requestHeaders(accessToken) },
+      );
     }
   }
 

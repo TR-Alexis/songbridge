@@ -2,13 +2,16 @@ import express from 'express';
 import cors from 'cors';
 import 'express-async-errors';
 import dotenv from 'dotenv';
+import path from 'path';
 import authRoutes from './routes/auth';
 import spotifyRoutes from './routes/spotify';
 import youtubeRoutes from './routes/youtube';
 import syncRoutes from './routes/sync';
 import { errorHandler } from './middleware/errorHandler';
+import { configureSystemCertificates } from './lib/systemCertificates';
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+configureSystemCertificates();
 
 const app = express();
 const port = process.env.PORT || 4000;

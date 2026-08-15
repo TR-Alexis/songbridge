@@ -53,6 +53,18 @@ Este repositorio contiene el prototipo de `SongBridge`, una plataforma de sincro
    - `npm run dev:web`
 5. Abrir `http://localhost:3000` y navegar a `/dashboard`.
 
+## Pruebas con ngrok
+1. Iniciar la API y la web en terminales separadas:
+   - `npm run dev:api`
+   - `npm run dev:web`
+2. Exponer solamente la web:
+   - `ngrok http 3000`
+3. Configurar `WEB_URL` y los redirect URI de Spotify/Google con el dominio HTTPS de ngrok.
+4. Dejar `NEXT_PUBLIC_API_URL` vacío. Las solicitudes del navegador usan `/api` en el mismo origen y Next.js las reenvía internamente a `API_URL` (por defecto, `http://localhost:4000`).
+5. Registrar exactamente ambos redirect URI en los paneles de Spotify y Google.
+
+No se debe exponer ni llamar directamente a `localhost:4000` desde la página pública de ngrok; los navegadores bloquean ese acceso público-a-loopback.
+
 ## Tareas pendientes
 - Añadir reintentos y recuperación de sincronizaciones parciales.
 - Mejorar los estados de carga y autenticación del frontend.

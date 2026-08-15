@@ -16,6 +16,19 @@ router.get('/playlists', authGuard, async (req: AuthenticatedRequest, res, next)
   }
 });
 
+router.get('/playlists/:playlistId/tracks', authGuard, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const playlistId = String(req.params.playlistId || '').trim();
+    if (!playlistId) return res.status(400).json({ error: 'playlistId is required' });
+
+    const account = await getProviderAccount(req.user!.id, 'youtube');
+    const tracks = await youtubeProvider.getPlaylistTracks(account.accessToken, playlistId, 20);
+    return res.json({ tracks });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/search', authGuard, async (req: AuthenticatedRequest, res, next) => {
   try {
     const query = String(req.query.q || '');

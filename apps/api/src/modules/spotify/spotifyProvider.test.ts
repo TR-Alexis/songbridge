@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getPlaylistItemTrack, getPlaylistTrackCount } from './spotifyProvider';
+import { buildSpotifySearchQueries, getPlaylistItemTrack, getPlaylistTrackCount } from './spotifyProvider';
 
 test('reads the 2026 playlist items field', () => {
   assert.equal(getPlaylistTrackCount({ items: { total: 12 } }), 12);
@@ -15,4 +15,11 @@ test('reads new and legacy playlist item shapes', () => {
   assert.equal(getPlaylistItemTrack({ item: track }), track);
   assert.equal(getPlaylistItemTrack({ track }), track);
   assert.equal(getPlaylistItemTrack({}), null);
+});
+
+test('builds a loose Spotify fallback query', () => {
+  assert.deepEqual(buildSpotifySearchQueries({ title: 'Nothing Else Matters', artists: ['Metallica'] }), [
+    'track:Nothing Else Matters artist:Metallica',
+    'Nothing Else Matters Metallica',
+  ]);
 });

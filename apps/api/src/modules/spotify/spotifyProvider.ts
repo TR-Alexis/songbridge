@@ -26,6 +26,14 @@ export function getPlaylistItemTrack(item: any): any | null {
   return item.item ?? item.track ?? null;
 }
 
+export function buildSpotifySearchQueries(track: Track): string[] {
+  const artist = track.artists[0]?.trim();
+  const strictQuery = [`track:${track.title}`, artist ? `artist:${artist}` : ''].filter(Boolean).join(' ');
+  const looseQuery = [track.title, artist].filter(Boolean).join(' ');
+
+  return [...new Set([strictQuery, looseQuery].filter(Boolean))];
+}
+
 export class SpotifyProvider implements ProviderAdapter<SpotifyProfile> {
   private buildClient(accessToken?: string): SpotifyWebApi {
     const spotifyApi = new SpotifyWebApi({
@@ -144,16 +152,15 @@ export class SpotifyProvider implements ProviderAdapter<SpotifyProfile> {
 
   async searchTracks(accessToken: string, track: Track) {
     const spotifyApi = this.buildClient(accessToken);
-    const queryParts = [`track:${track.title}`];
-    if (track.artists.length > 0) {
-      queryParts.push(`artist:${track.artists[0]}`);
+    for (const query of buildSpotifySearchQueries(track)) {
+      const result = await spotifyApi.searchTracks(query, { limit: 10 });
+      const items = result.body.tracks?.items ?? [];
+      if (items.length > 0) {
+        return items.map((item: any) => this.toTrack(item));
+      }
     }
 
-    const query = queryParts.join(' ');
-    const result = await spotifyApi.searchTracks(query, { limit: 10 });
-    const items = result.body.tracks?.items ?? [];
-
-    return items.map((item: any) => this.toTrack(item));
+    return [];
   }
 
   async createPlaylist(accessToken: string, name: string, description?: string) {

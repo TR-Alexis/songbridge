@@ -17,6 +17,17 @@ const youtubeScopes = [
   'https://www.googleapis.com/auth/youtube.force-ssl',
 ];
 
+export function normalizeYouTubeArtist(channelTitle?: string): string[] {
+  if (!channelTitle) return [];
+
+  const artist = channelTitle
+    .replace(/\s*-\s*Topic$/i, '')
+    .replace(/\s*-?\s*VEVO$/i, '')
+    .trim();
+
+  return artist ? [artist] : [];
+}
+
 export class YouTubeProvider implements ProviderAdapter<YouTubeProfile> {
   private buildOauthClient(accessToken?: string, refreshToken?: string) {
     const oauth2Client = new google.auth.OAuth2(
@@ -170,7 +181,7 @@ export class YouTubeProvider implements ProviderAdapter<YouTubeProfile> {
   toTrack(source: any): Track {
     return {
       title: source.title,
-      artists: source.videoOwnerChannelTitle ? [source.videoOwnerChannelTitle] : [],
+      artists: normalizeYouTubeArtist(source.videoOwnerChannelTitle),
       album: undefined,
       duration: undefined,
       sourceId: source.resourceId.videoId,
